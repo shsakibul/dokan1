@@ -1,0 +1,6 @@
+{
+  "name": "সহজ হিসাব",
+  "description": "মুদির দোকান ব্যবস্থাপনা ও হিসাব-নিকাশ অ্যাপ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
