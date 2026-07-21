@@ -40,8 +40,17 @@ fun SettingsScreen(
     var shopAddress by remember { mutableStateOf("মিরপুর-১০, ঢাকা") }
 
     var showAnalysisDialog by remember { mutableStateOf(false) }
+    var showBackupDialog by remember { mutableStateOf(false) }
+    var showPinDialog by remember { mutableStateOf(false) }
 
+    // Firebase Credentials inputs
+    var emailInput by remember { mutableStateOf("") }
+    var passwordInput by remember { mutableStateOf("") }
+
+    // Pin Inputs
+    var pinInput by remember { mutableStateOf("") }
     val context = LocalContext.current
+    var isPinActive by remember { mutableStateOf(SecurityManager.isPinEnabled(context)) }
 
     Column(
         modifier = modifier
@@ -214,7 +223,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            Toast.makeText(context, "ক্লাউড ব্যাকআপ সফলভাবে সম্পন্ন হয়েছে!", Toast.LENGTH_SHORT).show()
+                            showBackupDialog = true
                         }
                         .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -222,8 +231,13 @@ fun SettingsScreen(
                     Icon(Icons.Default.CloudUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("ক্লাউড ব্যাকআপ (Google Drive)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Text("আপনার সম্পূর্ণ হিসাব ব্যাকআপ রাখুন যাতে হারিয়ে না যায়।", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("ক্লাউড ব্যাকআপ ও অনলাইন সিঙ্ক", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        val backupSubtext = if (viewModel.isUserLoggedIn) {
+                            "লগড ইন আছেন: ${viewModel.currentUserEmail}"
+                        } else {
+                            "আপনার সম্পূর্ণ হিসাব ক্লাউডে নিরাপদ রাখতে ব্যাকআপ চালু করুন।"
+                        }
+                        Text(backupSubtext, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -233,7 +247,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            Toast.makeText(context, "পিন কোড লক সফলভাবে সক্রিয় করা হয়েছে!", Toast.LENGTH_SHORT).show()
+                            showPinDialog = true
                         }
                         .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -242,7 +256,288 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text("সিকিউরিটি পিন লক (PIN Lock)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Text("অ্যাপটি সুরক্ষিত করতে ৪ সংখ্যার পাসকোড সক্রিয় করুন।", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val pinSubtext = if (isPinActive) {
+                            "পিন লক সক্রিয় আছে (আপনার অ্যাপ সুরক্ষিত)।"
+                        } else {
+                            "অ্যাপটি সুরক্ষিত করতে ৪ সংখ্যার পাসকোড সক্রিয় করুন।"
+                        }
+                        Text(pinSubtext, fontSize = 11.sp, color = if (isPinActive) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+
+    // 1. Cloud Sync & Backup Dialog
+    if (showBackupDialog) {
+        Dialog(onDismissRequest = { showBackupDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = "ক্লাউড সিঙ্ক ও ব্যাকআপ",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    Divider()
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (!viewModel.isFirebaseConnected) {
+                        // Firebase not configured warning
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "⚠️ ক্লাউড কানেকশন নিষ্ক্রিয়",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFFE65100)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "আপনার প্রজেক্টের google-services.json ফাইলটি যুক্ত না থাকায় ক্লাউড ব্যাকআপ নিষ্ক্রিয় আছে। আপনি আপনার নিজের ফায়ারবেস ব্যাকআপ ব্যবহার করতে পারেন।",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFE65100)
+                                )
+                            }
+                        }
+                    }
+
+                    if (viewModel.isUserLoggedIn) {
+                        // User is logged in
+                        Text(
+                            text = "লগড ইন ইমেইল: ${viewModel.currentUserEmail}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Button(
+                            onClick = {
+                                viewModel.handleBackup { success, msg ->
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("backup_to_cloud_button"),
+                            enabled = viewModel.isFirebaseConnected
+                        ) {
+                            Icon(Icons.Default.CloudUpload, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("ক্লাউডে হিসাব ব্যাকআপ রাখুন")
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.handleRestore { success, msg ->
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                    if (success) {
+                                        showBackupDialog = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("restore_from_cloud_button"),
+                            enabled = viewModel.isFirebaseConnected
+                        ) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("ক্লাউড থেকে হিসাব ফিরিয়ে আনুন")
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Divider()
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        TextButton(
+                            onClick = {
+                                viewModel.handleSignOut()
+                                Toast.makeText(context, "সফলভাবে লগআউট করা হয়েছে!", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.align(Alignment.End),
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
+                        ) {
+                            Text("লগআউট করুন")
+                        }
+                    } else {
+                        // User is not logged in, show Auth Forms
+                        Text(
+                            text = "নিরাপদ অনলাইন ব্যাকআপ ও নতুন ফোনে হিসাব পুনরুদ্ধার করতে আপনার অ্যাকাউন্ট দিয়ে প্রবেশ করুন।",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = emailInput,
+                            onValueChange = { emailInput = it },
+                            label = { Text("ইমেইল এড্রেস") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = passwordInput,
+                            onValueChange = { passwordInput = it },
+                            label = { Text("পাসওয়ার্ড (কমপক্ষে ৬ ডিজিট)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    if (emailInput.isBlank() || passwordInput.isBlank()) {
+                                        Toast.makeText(context, "অনুগ্রহ করে সব তথ্য দিন!", Toast.LENGTH_SHORT).show()
+                                        return@OutlinedButton
+                                    }
+                                    viewModel.handleSignUp(emailInput, passwordInput) { success, msg ->
+                                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = viewModel.isFirebaseConnected
+                            ) {
+                                Text("নিবন্ধন")
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (emailInput.isBlank() || passwordInput.isBlank()) {
+                                        Toast.makeText(context, "অনুগ্রহ করে সব তথ্য দিন!", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    viewModel.handleSignIn(emailInput, passwordInput) { success, msg ->
+                                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = viewModel.isFirebaseConnected
+                            ) {
+                                Text("লগইন")
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    TextButton(
+                        onClick = { showBackupDialog = false },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text("বন্ধ করুন")
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Local Security PIN Dialog
+    if (showPinDialog) {
+        Dialog(onDismissRequest = { showPinDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = "সিকিউরিটি পিন লক সেটিংস",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    Divider()
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (isPinActive) {
+                        Text(
+                            text = "আপনার অ্যাপটি বর্তমানে ৪ সংখ্যার পিন লক দ্বারা সুরক্ষিত আছে।",
+                            fontSize = 13.sp,
+                            color = Color(0xFF2E7D32),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+
+                        Button(
+                            onClick = {
+                                SecurityManager.disablePin(context)
+                                isPinActive = false
+                                Toast.makeText(context, "পিন লক নিষ্ক্রিয় করা হয়েছে!", Toast.LENGTH_SHORT).show()
+                                showPinDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                        ) {
+                            Icon(Icons.Default.LockOpen, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("পিন লক সম্পূর্ণ বন্ধ করুন")
+                        }
+                    } else {
+                        Text(
+                            text = "আপনার অ্যাপটি সুরক্ষিত রাখতে একটি ৪ সংখ্যার পিন কোড সেট করুন। পিন সেট করার পর অ্যাপ ওপেন করতে এই পিন প্রয়োজন হবে।",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = pinInput,
+                            onValueChange = { input ->
+                                if (input.length <= 4 && input.all { it.isDigit() }) {
+                                    pinInput = input
+                                }
+                            },
+                            label = { Text("৪ সংখ্যার নতুন পিন") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                        )
+
+                        Button(
+                            onClick = {
+                                if (pinInput.length != 4) {
+                                    Toast.makeText(context, "অনুগ্রহ করে সঠিক ৪ সংখ্যার পিন দিন!", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                SecurityManager.savePin(context, pinInput)
+                                isPinActive = true
+                                pinInput = ""
+                                Toast.makeText(context, "অভিনন্দন! আপনার পিন সফলভাবে সেট করা হয়েছে।", Toast.LENGTH_LONG).show()
+                                showPinDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Lock, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("পিন লক চালু করুন")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    TextButton(
+                        onClick = { showPinDialog = false },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text("বাতিল")
                     }
                 }
             }
@@ -407,6 +702,7 @@ fun CategoryManagementScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var categoryName by remember { mutableStateOf("") }
     var categoryUnit by remember { mutableStateOf("পিস") }
+    var categoryToDelete by remember { mutableStateOf<Category?>(null) }
 
     val context = LocalContext.current
 
@@ -463,8 +759,7 @@ fun CategoryManagementScreen(
                             if (cat.id > 11) {
                                 IconButton(
                                     onClick = {
-                                        viewModel.deleteCategory(cat)
-                                        Toast.makeText(context, "ক্যাটাগরি মুছে ফেলা হয়েছে!", Toast.LENGTH_SHORT).show()
+                                        categoryToDelete = cat
                                     }
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = "মুছুন", tint = Color.Red)
@@ -568,5 +863,33 @@ fun CategoryManagementScreen(
                 }
             }
         }
+    }
+
+    // Category Delete Confirmation Dialog
+    if (categoryToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { categoryToDelete = null },
+            title = { Text("ক্যাটাগরি মুছে ফেলার সতর্কতা", fontWeight = FontWeight.Bold, color = Color.Red) },
+            text = { Text("আপনি কি নিশ্চিতভাবে '${categoryToDelete?.name}' ক্যাটাগরি মুছে ফেলতে চান? এই ক্যাটাগরির সাথে যুক্ত সমস্ত তথ্য পরিবর্তন হতে পারে।") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        categoryToDelete?.let { cat ->
+                            viewModel.deleteCategory(cat)
+                            Toast.makeText(context, "ক্যাটাগরি মুছে ফেলা হয়েছে!", Toast.LENGTH_SHORT).show()
+                        }
+                        categoryToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("হ্যাঁ, মুছুন")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { categoryToDelete = null }) {
+                    Text("বাতিল")
+                }
+            }
+        )
     }
 }

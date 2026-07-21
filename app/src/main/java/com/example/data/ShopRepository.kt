@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 
 class ShopRepository(
+    private val context: android.content.Context,
     private val categoryDao: CategoryDao,
     private val productDao: ProductDao,
     private val customerDao: CustomerDao,
@@ -74,6 +75,22 @@ class ShopRepository(
         val newStock = (product.stock - quantity).coerceAtLeast(0.0)
         productDao.updateStock(productId, newStock)
 
+        // Smart stock notification triggers
+        if (newStock <= 0.0) {
+            NotificationHelper.showNotification(
+                context,
+                "স্টক শেষ হয়ে গেছে!",
+                "${product.name}-এর সম্পূর্ণ স্টক শেষ হয়ে গেছে। দ্রুত নতুন স্টক সংগ্রহ করুন।"
+            )
+        } else if (newStock <= 3.0 && product.stock > 3.0) {
+            val formattedStock = if (newStock % 1.0 == 0.0) newStock.toInt().toString() else newStock.toString()
+            NotificationHelper.showNotification(
+                context,
+                "স্বল্প স্টক সতর্কতা",
+                "${product.name}-এর স্টক কমে গেছে। বর্তমান স্টক মাত্র $formattedStock ${product.unit}।"
+            )
+        }
+
         // 2. Insert Transaction
         val type = if (isBaki && customerId != null) "DUE_SALE" else "SALE"
         val formattedQuantity = if (quantity % 1.0 == 0.0) quantity.toInt().toString() else quantity.toString()
@@ -93,6 +110,18 @@ class ShopRepository(
         // 3. Update Customer's Due balance
         if (isBaki && customerId != null) {
             customerDao.updateCustomerDue(customerId, saleAmount)
+            // Smart due alert
+            val customer = customerDao.getCustomerByIdSuspend(customerId)
+            if (customer != null) {
+                val newDue = customer.currentDue + saleAmount
+                if (newDue >= 1000.0) {
+                    NotificationHelper.showNotification(
+                        context,
+                        "বাকি আদায়ের সর্তকতা",
+                        "${customer.name}-এর বকেয়া দাঁড়িয়েছে ${newDue.toInt()} টাকা।"
+                    )
+                }
+            }
         }
 
         return true
@@ -180,5 +209,36 @@ class ShopRepository(
                 details = "অন্যান্য ব্যয়: $title"
             )
         )
+    }
+
+    // Check overdue accounts dynamically for notifications
+    suspend fun checkDuePaymentReminders() {
+        val customersList = customerDao.getAllCustomers().firstOrNull() ?: emptyList()
+        val allTxs = transactionDao.getAllTransactions().firstOrNull() ?: emptyList()
+        val now = System.currentTimeMillis()
+
+        customersList.forEach { customer ->
+            if (customer.currentDue > 0.0) {
+                // Find oldest DUE_SALE transaction for this customer
+                val customerTxs = allTxs.filter { it.customerId == customer.id && it.type == "DUE_SALE" }
+                val oldestTx = customerTxs.minByOrNull { it.date }
+                if (oldestTx != null) {
+                    val daysElapsed = ((now - oldestTx.date) / (1000 * 60 * 60 * 24)).toInt()
+                    if (daysElapsed >= 30) {
+                        NotificationHelper.showNotification(
+                            context,
+                            "বাকি পরিশোধের ৩০ দিন অতিবাহিত",
+                            "${customer.name}-এর বাকি ${customer.currentDue.toInt()} টাকা পরিশোধের ৩০ দিন পূর্ণ হয়েছে।"
+                        )
+                    } else if (daysElapsed >= 15) {
+                        NotificationHelper.showNotification(
+                            context,
+                            "বাকি আদায়ের ১৫ দিন অতিবাহিত",
+                            "${customer.name}-এর বাকি ${customer.currentDue.toInt()} টাকা পরিশোধের ১৫ দিন অতিবাহিত হয়েছে।"
+                        )
+                    }
+                }
+            }
+        }
     }
 }

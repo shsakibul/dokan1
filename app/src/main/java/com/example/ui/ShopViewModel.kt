@@ -28,12 +28,68 @@ sealed interface Screen {
 class ShopViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val repository = ShopRepository(
+        application,
         db.categoryDao(),
         db.productDao(),
         db.customerDao(),
         db.transactionDao(),
         db.stockHistoryDao()
     )
+
+    // Sync & Auth States
+    var isFirebaseConnected by mutableStateOf(SyncManager.isFirebaseConfigured(application))
+    var currentUserEmail by mutableStateOf(SyncManager.getUserEmail())
+    var isUserLoggedIn by mutableStateOf(SyncManager.getUserId() != null)
+
+    init {
+        viewModelScope.launch {
+            try {
+                repository.checkDuePaymentReminders()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun refreshAuthState() {
+        isFirebaseConnected = SyncManager.isFirebaseConfigured(getApplication())
+        currentUserEmail = SyncManager.getUserEmail()
+        isUserLoggedIn = SyncManager.getUserId() != null
+    }
+
+    fun handleSignUp(email: String, password: String, onResult: (Boolean, String) -> Unit) {
+        SyncManager.signUp(email, password) { success, message ->
+            refreshAuthState()
+            onResult(success, message)
+        }
+    }
+
+    fun handleSignIn(email: String, password: String, onResult: (Boolean, String) -> Unit) {
+        SyncManager.signIn(email, password) { success, message ->
+            refreshAuthState()
+            onResult(success, message)
+        }
+    }
+
+    fun handleSignOut() {
+        SyncManager.signOut()
+        refreshAuthState()
+    }
+
+    fun handleBackup(onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            SyncManager.backupData(getApplication(), db, onResult)
+        }
+    }
+
+    fun handleRestore(onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            SyncManager.restoreData(getApplication(), db) { success, message ->
+                refreshAuthState()
+                onResult(success, message)
+            }
+        }
+    }
 
     // Navigation Back-stack
     val navigationStack = mutableStateListOf<Screen>(Screen.Dashboard)
