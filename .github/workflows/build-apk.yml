@@ -40,6 +40,12 @@ jobs:
       - name: Regenerate Gradle Wrapper
         run: gradle wrapper
 
+      - name: Restore Debug Keystore
+        run: |
+          if [ -f "debug.keystore.base64" ] && [ ! -f "debug.keystore" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          fi
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
