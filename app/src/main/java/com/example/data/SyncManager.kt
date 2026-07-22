@@ -282,12 +282,15 @@ object SyncManager {
                     StockHistory(id = id, productId = prodId, quantityAdded = qtyAdded, purchasePrice = pPrice, salePrice = sPrice, supplier = supplier, date = date)
                 }
 
-                // Write to SQLite Room (overwrite/replace)
-                database.runInTransaction {
-                    // We run database transactions to do bulk inputs reliably
-                    // We can use a coroutine launcher or run direct suspend transactions
-                    // Since Room supports runInTransaction, let's insert them safely
+                if (firestoreCats.isEmpty() && firestoreProds.isEmpty() && firestoreCusts.isEmpty() && firestoreTxs.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        onResult(false, "ক্লাউডে কোনো ব্যাকআপ ডেটা পাওয়া যায়নি!")
+                    }
+                    return@withContext
                 }
+
+                // Clear current local tables for a clean overwrite restore
+                database.clearAllTables()
 
                 // To insert suspendable entries safely without blocking:
                 // Categories

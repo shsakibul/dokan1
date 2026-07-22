@@ -266,6 +266,92 @@ fun SettingsScreen(
                 }
             }
         }
+
+        // Notification Settings Card
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "নোটিফিকেশন ও অ্যালার্ট সেটিংস",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                // 1. Low Stock Alerts Switch Row
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.TrendingDown, 
+                            contentDescription = null, 
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("কম স্টক সতর্কতা", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("পণ্যের স্টক ফুরিয়ে বা কমে গেলে নোটিফিকেশন পান।", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    var lowStockEnabled by remember { mutableStateOf(NotificationPrefsManager.isLowStockEnabled(context)) }
+                    Switch(
+                        checked = lowStockEnabled,
+                        onCheckedChange = {
+                            lowStockEnabled = it
+                            NotificationPrefsManager.setLowStockEnabled(context, it)
+                        },
+                        modifier = Modifier.testTag("toggle_low_stock_notif")
+                    )
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // 2. Customer Due Alerts Switch Row
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.NotificationsActive, 
+                            contentDescription = null, 
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("বাকির রিমাইন্ডার ও আদায় সতর্কতা", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("কাস্টমারের বকেয়া বৃদ্ধি ও পরিশোধের নোটিফিকেশন পান।", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    var dueEnabled by remember { mutableStateOf(NotificationPrefsManager.isCustomerDueEnabled(context)) }
+                    Switch(
+                        checked = dueEnabled,
+                        onCheckedChange = {
+                            dueEnabled = it
+                            NotificationPrefsManager.setCustomerDueEnabled(context, it)
+                        },
+                        modifier = Modifier.testTag("toggle_due_notif")
+                    )
+                }
+            }
+        }
     }
 
     // 1. Cloud Sync & Backup Dialog
